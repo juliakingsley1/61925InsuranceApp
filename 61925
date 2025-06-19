@@ -1,0 +1,3157 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Context Data Claims Processing Platform</title>
+
+<!-- Tailwind CSS CDN -->
+
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- Google Fonts - Inter -->
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- React and ReactDOM CDNs -->
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+<!-- Babel CDN for JSX transformation -->
+
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<!-- Recharts CDN for Charts -->
+
+<script src="https://unpkg.com/recharts/umd/Recharts.min.js"></script>
+
+ 
+
+<style>
+
+body {
+
+font-family: 'Inter', sans-serif;
+
+}
+
+/* Custom scrollbar for better UI */
+
+.custom-scrollbar::-webkit-scrollbar {
+
+width: 8px;
+
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+
+background: #f1f1f1;
+
+border-radius: 10px;
+
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+
+background: #888;
+
+border-radius: 10px;
+
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+
+background: #555;
+
+}
+
+</style>
+
+</head>
+
+<body class="m-0 p-0 box-border">
+
+<div id="root"></div>
+
+ 
+
+<script type="text/babel">
+
+// Ensure all resources are loaded before running the React app
+
+window.onload = function() {
+
+const { useState, useEffect, useRef } = React;
+
+// Destructure Recharts components. They will be undefined if Recharts is not loaded.
+
+const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, Legend } = window.Recharts || {};
+
+ 
+
+// --- Mock Data for Frontend Demo ---
+
+const initialMockClaimsData = [
+
+{
+
+id: 'claim-000001',
+
+claimId: 'CLM-2025-000001',
+
+claimant: 'John Smith',
+
+assignedAdjuster: 'Sarah Chen',
+
+type: 'Property Damage (Fire)',
+
+slaDue: new Date(new Date().setDate(new Date().getDate() + 3)).toISOString().split('T')[0], // 3 days from now
+
+status: 'Flagged',
+
+priority: 'High',
+
+policyNumber: 'POL-HOME-987654',
+
+reportDate: '2025-01-16',
+
+lossDate: '2025-01-15',
+
+jurisdiction: 'Los Angeles, CA',
+
+estimatedValue: '185000',
+
+overviewText: 'House fire due to January 2025 wildfires in Los Angeles. Significant structural damage.',
+
+source: 'Guidewire',
+
+documents: [
+
+{ id: 'doc-1', name: 'First Notice of Loss', type: 'PDF', size: '1.5 MB', uploadedDate: '2025-01-16', processingStatus: 'Processed', confidence: 98, content: 'FNOL details for John Smith claim: Fire incident on 2025-01-15 at 123 Main St, Los Angeles, CA. Policy POL-HOME-987654.' },
+
+{ id: 'doc-2', name: 'Police Report', type: 'PDF', size: '2.4 MB', uploadedDate: '2025-01-17', processingStatus: 'Processed', confidence: 95, content: 'LAFD Report #LAF-2025-001 detailing fire at 123 Main St. Cause: Wildfire spread. No casualties.' },
+
+{ id: 'doc-3', name: 'Property Photos', type: 'Images', size: '8.7 MB', uploadedDate: '2025-01-17', processingStatus: 'Processed', confidence: 88, content: 'Photos showing extensive fire damage to roof, interior, and backyard.' },
+
+{ id: 'doc-4', name: 'Insurance Policy', type: 'PDF', size: '5.1 MB', uploadedDate: '2025-01-16', processingStatus: 'Processed', confidence: 99, content: 'Policy details for POL-HOME-987654. Coverage includes fire damage. Deductible: $1,000. Limit: $500,000.' },
+
+{ id: 'doc-5', name: 'Adjuster Notes - Initial', type: 'PDF', size: '1.2 MB', uploadedDate: '2025-01-18', processingStatus: 'Processing', confidence: 0, content: 'Initial visit notes: confirmed fire damage, structural integrity compromised. Requires full assessment.' },
+
+{ id: 'doc-6', name: 'Contractor Estimate', type: 'PDF', size: '3.1 MB', uploadedDate: '2025-01-20', processingStatus: 'Processed', confidence: 90, content: 'Estimate for repairs: $185,000 for structural, roof, and interior.' },
+
+{ id: 'doc-7', name: 'News Report', type: 'PDF', size: '0.8 MB', uploadedDate: '2025-01-16', processingStatus: 'Processed', confidence: 97, content: 'Local news report on Jan 2025 LA wildfires, mentioning widespread property damage.' },
+
+],
+
+extractedData: [
+
+{ field: 'Claimant Name', value: 'John Smith', source: 'FNOL', confidence: 98 },
+
+{ field: 'Date of Loss', value: '2025-01-15', source: 'Police Report', confidence: 95 },
+
+{ field: 'Location', value: '123 Main St, Los Angeles, CA', source: 'Police Report', confidence: 92 },
+
+{ field: 'Damage Amount', value: '185000', source: 'Initial Estimate', confidence: 67 },
+
+{ field: 'Policy Number', value: 'POL-HOME-987654', source: 'FNOL', confidence: 99 },
+
+{ field: 'Claim Type', value: 'Property Damage (Fire)', source: 'FNOL', confidence: 99 },
+
+],
+
+aiChatHistory: [],
+
+issues: [
+
+{ id: 'issue-1', description: 'Policy Coverage needs re-verification for specific wildfire clauses.', status: 'open', priority: 'High' }
+
+]
+
+},
+
+{
+
+id: 'claim-000002',
+
+claimId: 'CLM-2025-000002', claimant: 'Jane Doe', assignedAdjuster: 'Mike Davis', type: 'Water Damage', slaDue: '2025-07-01', status: 'Under Review', priority: 'Medium', policyNumber: 'POL-COMM-123456', reportDate: '2025-06-10', lossDate: '2025-06-08', jurisdiction: 'San Francisco, CA', estimatedValue: '25000', overviewText: 'Burst pipe in commercial building.', source: 'Duck Creek',
+
+documents: [], extractedData: [], aiChatHistory: [], issues: []
+
+},
+
+{
+
+id: 'claim-000003',
+
+claimId: 'CLM-2025-000003', claimant: 'Robert Green', assignedAdjuster: 'Sarah Chen', type: 'Theft', slaDue: '2025-06-25', status: 'Ready for Review', priority: 'High', policyNumber: 'POL-AUTO-789012', reportDate: '2025-06-15', lossDate: '2025-06-14', jurisdiction: 'Miami, FL', estimatedValue: '5000', overviewText: 'Vehicle theft, police report submitted.', source: 'Origami Risk',
+
+documents: [], extractedData: [], aiChatHistory: [], issues: []
+
+},
+
+{
+
+id: 'claim-000004',
+
+claimId: 'CLM-2025-000004', claimant: 'Emily White', assignedAdjuster: 'Alex Lee', type: 'Hail Damage', slaDue: '2025-07-10', status: 'Missing Docs', priority: 'Medium', policyNumber: 'POL-HOME-345678', reportDate: '2025-06-12', lossDate: '2025-06-11', jurisdiction: 'Dallas, TX', estimatedValue: '12000', overviewText: 'Roof damage from recent hail storm.', source: 'Cytora',
+
+documents: [], extractedData: [], aiChatHistory: [], issues: [{id: 'issue-3', description: 'Missing roof inspection report.', status: 'open', priority: 'High'}]
+
+},
+
+{
+
+id: 'claim-000005',
+
+claimId: 'CLM-2025-000005', claimant: 'David Brown', assignedAdjuster: 'Mike Davis', type: 'Wind Damage', slaDue: '2025-06-20', status: 'Flagged', priority: 'High', policyNumber: 'POL-FARM-901234', reportDate: '2025-06-16', lossDate: '2025-06-15', jurisdiction: 'Kansas City, MO', estimatedValue: '30000', overviewText: 'Barn roof damage due to high winds.', source: 'Email',
+
+documents: [], extractedData: [], aiChatHistory: [], issues: [{id: 'issue-4', description: 'Discrepancy in wind speed data vs. damage report.', status: 'open', priority: 'High'}]
+
+},
+
+{
+
+id: 'claim-000006',
+
+claimId: '74635', claimant: 'Jane Doe', assignedAdjuster: 'Jimmy Joe', type: 'Home', slaDue: new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().split('T')[0], status: 'In progress', priority: 'High', policyNumber: 'POL-HOME-74635', reportDate: '2025-06-01', lossDate: '2025-05-28', jurisdiction: 'Chicago, IL', estimatedValue: '75000', overviewText: 'Fire damage to kitchen area. Waiting on final contractor feedback.', source: 'Phone Call',
+
+documents: [], extractedData: [], aiChatHistory: [], issues: [{id: 'issue-5', description: 'Review contractor feedback.', status: 'open', priority: 'High'}]
+
+},
+
+{
+
+id: 'claim-000007',
+
+claimId: '74636', claimant: 'Alice Wonderland', assignedAdjuster: 'Sarah Chen', type: 'Auto', slaDue: new Date(new Date().setDate(new Date().getDate() + 5)).toISOString().split('T')[0], status: 'Ready for Review', priority: 'High', policyNumber: 'POL-AUTO-74636', reportDate: '2025-06-16', lossDate: '2025-06-15', jurisdiction: 'New York, NY', estimatedValue: '8000', overviewText: 'Minor collision, pending final estimate.', source: 'Guidewire',
+
+documents: [], extractedData: [], aiChatHistory: [], issues: []
+
+},
+
+{
+
+id: 'claim-000008',
+
+claimId: '74637', claimant: 'Bob The Builder', assignedAdjuster: 'Alex Lee', type: 'Commercial', slaDue: new Date(new Date().setDate(new Date().getDate() + 10)).toISOString().split('T')[0], status: 'Missing Docs', priority: 'Medium', policyNumber: 'POL-COMM-74637', reportDate: '2025-06-10', lossDate: '2025-06-09', jurisdiction: 'Houston, TX', estimatedValue: '150000', overviewText: 'Storm damage to commercial roof. Missing drone imagery.', source: 'Duck Creek',
+
+documents: [], extractedData: [], aiChatHistory: [], issues: [{id: 'issue-6', description: 'Request aerial survey photos.', status: 'open', priority: 'Medium'}]
+
+},
+
+{
+
+id: 'claim-000009',
+
+claimId: '74638', claimant: 'Charlie Chaplin', assignedAdjuster: 'Jimmy Joe', type: 'Home', slaDue: new Date(new Date().setDate(new Date().getDate() + 1)).toISOString().split('T')[0], status: 'Flagged', priority: 'High', policyNumber: 'POL-HOME-74638', reportDate: '2025-06-17', lossDate: '2025-06-16', jurisdiction: 'Seattle, WA', estimatedValue: '25000', overviewText: 'Water pipe burst, significant interior damage. Urgent!', source: 'Origami Risk',
+
+documents: [], extractedData: [], aiChatHistory: [], issues: [{id: 'issue-7', description: 'Urgent: Verify cause of loss and potential subrogation.', status: 'open', priority: 'High'}]
+
+},
+
+{
+
+id: 'claim-000010',
+
+claimId: '74639', claimant: 'Diana Prince', assignedAdjuster: 'Mike Davis', type: 'Jewelry', slaDue: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0], status: 'Under Review', priority: 'Medium', policyNumber: 'POL-JEW-74639', reportDate: '2025-06-18', lossDate: '2025-06-17', jurisdiction: 'Las Vegas, NV', estimatedValue: '10000', overviewText: 'Lost diamond earring, awaiting appraisal report.', source: 'Cytora',
+
+documents: [], extractedData: [], aiChatHistory: [], issues: []
+
+},
+
+{
+
+id: 'claim-000011',
+
+claimId: '80001', claimant: 'Walter White', assignedAdjuster: 'Jimmy Joe', type: 'Water', slaDue: new Date(new Date().setDate(new Date().getDate() + 2)).toISOString().split('T')[0], status: 'In progress', priority: 'High', policyNumber: 'POL-HOME-80001', reportDate: '2025-06-18', lossDate: '2025-06-17', jurisdiction: 'Albuquerque, NM', estimatedValue: '22000', overviewText: 'Burst pipe in basement, extensive water damage.', source: 'Email',
+
+documents: [], extractedData: [], aiChatHistory: [], issues: []
+
+},
+
+{
+
+id: 'claim-000012',
+
+claimId: '80002', claimant: 'Jesse Pinkman', assignedAdjuster: 'Mike Davis', type: 'Fire', slaDue: new Date(new Date().setDate(new Date().getDate() + 14)).toISOString().split('T')[0], status: 'Under Review', priority: 'High', policyNumber: 'POL-COMM-80002', reportDate: '2025-06-10', lossDate: '2025-06-08', jurisdiction: 'Tucson, AZ', estimatedValue: '180000', overviewText: 'Commercial kitchen fire, structural damage.', source: 'Phone Call',
+
+documents: [], extractedData: [], aiChatHistory: [], issues: []
+
+},
+
+{
+
+id: 'claim-000013',
+
+claimId: '80003', claimant: 'Saul Goodman', assignedAdjuster: 'Sarah Chen', type: 'Hurricane', slaDue: new Date(new Date().setDate(new Date().getDate() + 20)).toISOString().split('T')[0], status: 'Pending Review', priority: 'Medium', policyNumber: 'POL-HOME-80003', reportDate: '2025-06-05', lossDate: '2025-06-01', jurisdiction: 'New Orleans, LA', estimatedValue: '110000', overviewText: 'Roof damage and flooding from recent hurricane.', source: 'Guidewire',
+
+documents: [], extractedData: [], aiChatHistory: [], issues: []
+
+},
+
+{
+
+id: 'claim-000014',
+
+claimId: '80004', claimant: 'Gustavo Fring', assignedAdjuster: 'Alex Lee', type: 'Wind', slaDue: new Date(new Date().setDate(new Date().getDate() + 4)).toISOString().split('T')[0], status: 'Processing', priority: 'High', policyNumber: 'POL-COMM-80004', reportDate: '2025-06-16', lossDate: '2025-06-15', jurisdiction: 'Los Angeles, CA', estimatedValue: '16000', overviewText: 'High wind damage to warehouse siding.', source: 'Duck Creek',
+
+documents: [], extractedData: [], aiChatHistory: [], issues: []
+
+},
+
+{
+
+id: 'claim-000015',
+
+claimId: '80005', claimant: 'Hank Schrader', assignedAdjuster: 'Jimmy Joe', type: 'Theft', slaDue: new Date(new Date().setDate(new Date().getDate() + 2)).toISOString().split('T')[0], status: 'Flagged', priority: 'High', policyNumber: 'POL-AUTO-80005', reportDate: '2025-06-18', lossDate: '2025-06-17', jurisdiction: 'Denver, CO', estimatedValue: '6000', overviewText: 'Vehicle stolen from driveway, police report filed.', source: 'Origami Risk',
+
+documents: [], extractedData: [], aiChatHistory: [], issues: []
+
+},
+
+{
+
+id: 'claim-000016',
+
+id: '80006', claimant: 'Skyler White', assignedAdjuster: 'Sarah Chen', type: 'Other Property', slaDue: new Date(new Date().setDate(new Date().getDate() + 9)).toISOString().split('T')[0], status: 'In progress', priority: 'Medium', policyNumber: 'POL-HOME-80006', reportDate: '2025-06-12', lossDate: '2025-06-10', jurisdiction: 'Atlanta, GA', estimatedValue: '9000', overviewText: 'Fallen tree damage to fence and shed.', source: 'Cytora',
+
+documents: [], extractedData: [], aiChatHistory: [], issues: []
+
+}
+
+];
+
+ 
+
+// Custom Icons (using Lucide React alternatives or inline SVGs for simplicity)
+
+const HomeIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-home">
+
+<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+
+<polyline points="9 22 9 12 15 12 15 22" />
+
+</svg>
+
+);
+
+const ListChecksIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-list-checks">
+
+<path d="M10 16.5L14.5 21L21 13" />
+
+<path d="M3 4h18" />
+
+<path d="M3 8h18" />
+
+<path d="M3 12h18" />
+
+<path d="M3 16h18" />
+
+<path d="M3 20h18" />
+
+</svg>
+
+);
+
+const BarChartIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-bar-chart-2">
+
+<line x1="18" x2="18" y1="20" y2="10" />
+
+<line x1="12" x2="12" y1="20" y2="4" />
+
+<line x1="6" x2="6" y1="20" y2="14" />
+
+</svg>
+
+);
+
+const UsersIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-users">
+
+<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+
+<circle cx="9" cy="7" r="4" />
+
+<path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+
+</svg>
+
+);
+
+const SettingsIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-settings">
+
+<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.78 1.25a2 2 0 0 0 .73 2.73l.04.02a2 2 0 0 1 .97 1.43v.34a2 2 0 0 1-.97 1.43l-.04.02a2 2 0 0 0-.73 2.73l.78 1.25a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.78-1.25a2 2 0 0 0-.73-2.73l-.04-.02a2 2 0 0 1-.97-1.43v-.34a2 2 0 0 1 .97-1.43l.04-.02a2 2 0 0 0 .73-2.73l-.78-1.25a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+
+<circle cx="12" cy="12" r="3" />
+
+</svg>
+
+);
+
+const FlagIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-flag">
+
+<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+
+<line x1="4" x2="4" y1="22" y2="15" />
+
+</svg>
+
+);
+
+const DownloadIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-download">
+
+<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+
+<polyline points="7 10 12 15 17 10" />
+
+<line x1="12" x2="12" y1="15" y2="3" />
+
+</svg>
+
+);
+
+const CheckCircleIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-check-circle-2">
+
+<circle cx="12" cy="12" r="10" />
+
+<path d="m9 12 2 2 4-4" />
+
+</svg>
+
+);
+
+const AlertCircleIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-alert-circle">
+
+<circle cx="12" cy="12" r="10" />
+
+<line x1="12" x2="12" y1="8" y2="12" />
+
+<line x1="12" x2="12.01" y1="16" y2="16" />
+
+</svg>
+
+);
+
+const ClockIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-clock">
+
+<circle cx="12" cy="12" r="10" />
+
+<polyline points="12 6 12 12 16 14" />
+
+</svg>
+
+);
+
+const PercentIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-percent">
+
+<line x1="19" x2="5" y1="5" y2="19" />
+
+<circle cx="6.5" cy="6.5" r="2.5" />
+
+<circle cx="17.5" cy="17.5" r="2.5" />
+
+</svg>
+
+);
+
+const SearchIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-search">
+
+<circle cx="11" cy="11" r="8" />
+
+<path d="m21 21-4.3-4.3" />
+
+</svg>
+
+);
+
+const FilterIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-filter">
+
+<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+
+</svg>
+
+);
+
+const PlusIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-plus">
+
+<path d="M12 5v14" />
+
+<path d="M5 12h14" />
+
+</svg>
+
+);
+
+const UsersRoundIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-users-round">
+
+<path d="M18 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+
+<circle cx="10" cy="4" r="2" />
+
+<path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+
+</svg>
+
+);
+
+const LayersIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-layers-3">
+
+<path d="m12.83 2.189 7.965 3.864C20.485 6.225 21 6.842 21 7.5V17c0 .546-.376 1.055-.916 1.258l-7.965 3.864c-.267.129-.563.189-.87.189-.307 0-.603-.06-.87-.189l-7.965-3.864C3.376 18.055 3 17.546 3 17V7.5c0-.658.515-1.275 1.205-1.55L11.17 2.19c.56-.27 1.176-.27 1.736-.001Z" />
+
+<path d="m3 7.5 9 4.5 9-4.5" />
+
+<path d="m3 12 9 4.5 9-4.5" />
+
+</svg>
+
+);
+
+const UserIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-user">
+
+<circle cx="12" cy="7" r="4" />
+
+<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+
+</svg>
+
+);
+
+const CalendarIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-calendar">
+
+<rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
+
+<line x1="16" x2="16" y1="2" y2="6" />
+
+<line x1="8" x2="8" y1="2" y2="6" />
+
+<line x1="3" x2="21" y1="10" y2="10" />
+
+</svg>
+
+);
+
+const MapPinIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-map-pin">
+
+<path d="M12 18.31a.94.94 0 0 0-.25-.33c-.22-.2-.48-.38-.79-.53a15.82 15.82 0 0 1-5-4.4c-.95-1.25-2.5-3.03-2.5-5.32A7 7 0 0 1 12 2a7 7 0 0 1 7 7.06c0 2.29-1.55 4.07-2.5 5.32a15.82 15.82 0 0 1-5 4.4c-.31.15-.57.33-.79.53a.94.94 0 0 0-.25.33ZM12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+
+</svg>
+
+);
+
+const DollarSignIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-dollar-sign">
+
+<line x1="12" x2="12" y1="2" y2="22" />
+
+<path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+
+</svg>
+
+);
+
+const MessageCircleMoreIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-message-circle-more">
+
+<path d="M7.9 20A9 9 0 0 1 4 16.1L2 22Z" />
+
+<path d="M10.4 12.2a1 1 0 0 1 0 1.4.2.2 0 0 0-.06.2L9 15.6a1 1 0 0 1-.7.4c-.2 0-.4-.1-.5-.2a1 1 0 0 1-.3-.7c0-.2 0-.4.2-.6L9.6 13a1 1 0 0 1 1.4 0Z" />
+
+<path d="M21 15a9 9 0 0 0-9-9H6a9 9 0 0 0 0 18h6" />
+
+<path d="M12 12h.01" />
+
+<path d="M16 12h.01" />
+
+<path d="M20 12h.01" />
+
+</svg>
+
+);
+
+const FileTextIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-file-text">
+
+<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+
+<path d="M14 2v4a2 2 0 0 0 2 2h4" />
+
+<path d="M10 9H8" />
+
+<path d="M16 13H8" />
+
+<path d="M16 17H8" />
+
+</svg>
+
+);
+
+const ImageUpIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-image-up">
+
+<path d="M10.3 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10.3" />
+
+<path d="m16 19-3-3-3.5 3.5" />
+
+<path d="M14.5 12a.5.5 1 0 0 0 0-1 .5.5 0 0 0 0 1Z" />
+
+<path d="M22 21v-4h-4" />
+
+<path d="m22 17-5 5" />
+
+</svg>
+
+);
+
+const FileDownIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-file-down">
+
+<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+
+<path d="M14 2v4a2 2 0 0 0 2 2h4" />
+
+<path d="M12 17V11" />
+
+<path d="m9 14 3 3 3-3" />
+
+</svg>
+
+);
+
+const EditIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-edit-2">
+
+<path d="M17 3a2.85 2.85 0 0 1 2.85 2.85L18.15 9.85l-7 7L3 17l1.15-4.15 7-7L14.15 3.85A2.85 2.85 0 0 1 17 3Z" />
+
+<path d="m15 5 4 4" />
+
+</svg>
+
+);
+
+const MoreHorizontalIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-more-horizontal">
+
+<circle cx="12" cy="12" r="1" />
+
+<circle cx="19" cy="12" r="1" />
+
+<circle cx="5" cy="12" r="1" />
+
+</svg>
+
+);
+
+const UserPlusIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-user-plus">
+
+<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+
+<circle cx="9" cy="7" r="4" />
+
+<line x1="19" x2="19" y1="8" y2="14" />
+
+<line x1="22" x2="16" y1="11" y2="11" />
+
+</svg>
+
+);
+
+const HelpCircleIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-help-circle">
+
+<circle cx="12" cy="12" r="10" />
+
+<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+
+<path d="M12 17h.01" />
+
+</svg>
+
+);
+
+const LogOutIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-log-out">
+
+<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+
+<polyline points="17 16 22 11 17 6" />
+
+<line x1="22" x2="10" y1="11" y2="11" />
+
+</svg>
+
+);
+
+const TrendingUpIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-trending-up">
+
+<polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+
+<polyline points="16 7 22 7 22 13" />
+
+</svg>
+
+);
+
+const TrendingDownIcon = () => (
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucude-trending-down">
+
+<polyline points="22 17 13.5 8.5 8.5 13.5 2 7" />
+
+<polyline points="16 17 22 17 22 11" />
+
+</svg>
+
+);
+
+ 
+
+// Conditional rendering for Recharts components
+
+const ChartContainer = ({ children }) => {
+
+if (!ResponsiveContainer || !LineChart || !BarChart || !PieChart || !XAxis || !YAxis || !CartesianGrid || !Tooltip || !Legend || !Line || !Cell) {
+
+console.warn("Recharts components are not available. Ensure Recharts CDN is loaded correctly.");
+
+return <div className="text-center text-gray-500 py-10">Chart library not loaded or components missing.</div>;
+
+}
+
+return children;
+
+};
+
+ 
+
+const ClaimsVolumeTrendChart = ({ data }) => (
+
+<ChartContainer>
+
+<ResponsiveContainer width="100%" height={200}>
+
+<LineChart data={data}>
+
+<CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+
+<XAxis dataKey="name" axisLine={false} tickLine={false} />
+
+<YAxis axisLine={false} tickLine={false} />
+
+<Tooltip />
+
+<Line type="monotone" dataKey="claims" stroke="#8884d8" strokeWidth={2} dot={{ r: 4 }} />
+
+</LineChart>
+
+</ResponsiveContainer>
+
+</ChartContainer>
+
+);
+
+ 
+
+const ClaimsByStatusChart = ({ data }) => {
+
+const COLORS = ['#4CAF50', '#FFC107', '#2196F3', '#FF5722']; // Complete, In Progress, Pending Review, Flagged/Other
+
+return (
+
+<ChartContainer>
+
+<ResponsiveContainer width="100%" height={200}>
+
+<PieChart>
+
+<Pie
+
+data={data}
+
+cx="50%"
+
+cy="50%"
+
+outerRadius={80}
+
+fill="#8884d8"
+
+dataKey="value"
+
+label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+
+>
+
+{data.map((entry, index) => (
+
+<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+
+))}
+
+</Pie>
+
+<Tooltip />
+
+</PieChart>
+
+</ResponsiveContainer>
+
+</ChartContainer>
+
+);
+
+};
+
+ 
+
+const SimpleBarChart = ({ data, xKey, barKey, title }) => (
+
+<ChartContainer>
+
+<ResponsiveContainer width="100%" height={250}>
+
+<BarChart data={data}>
+
+<CartesianGrid strokeDasharray="3 3" />
+
+<XAxis dataKey={xKey} />
+
+<YAxis />
+
+<Tooltip />
+
+<Legend />
+
+<Bar dataKey={barKey} fill="#8884d8" />
+
+</BarChart>
+
+</ResponsiveContainer>
+
+</ChartContainer>
+
+);
+
+ 
+
+// Layout Component
+
+const Layout = ({ children, currentPage, setCurrentPage }) => {
+
+const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+ 
+
+const navigation = [
+
+{ name: 'Dashboard', href: 'dashboard', icon: HomeIcon },
+
+{ name: 'Claims Queue', href: 'claims-queue', icon: ListChecksIcon },
+
+{ name: 'Analytics', href: 'analytics', icon: BarChartIcon },
+
+{ name: 'Team Management', href: 'team-management', icon: UsersIcon },
+
+{ name: 'Admin Console', href: 'admin-console', icon: SettingsIcon },
+
+{ name: 'Settings', href: 'settings', icon: SettingsIcon },
+
+];
+
+ 
+
+return (
+
+<div className="flex min-h-screen bg-gray-50 font-inter">
+
+{/* Mobile sidebar toggle */}
+
+<div className="lg:hidden fixed top-0 left-0 z-40 p-4">
+
+<button
+
+onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+
+className="p-2 rounded-md text-gray-700 bg-white shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+
+>
+
+<svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+
+<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+
+</svg>
+
+</button>
+
+</div>
+
+ 
+
+{/* Sidebar */}
+
+<aside
+
+className={`fixed inset-y-0 left-0 z-30 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+
+} flex flex-col p-4 space-y-6 lg:static lg:flex-shrink-0`}
+
+>
+
+<div className="flex items-center space-x-3 p-4 border-b pb-4">
+
+<img src="https://placehold.co/40x40/6366F1/FFFFFF?text=CD" alt="Context Data Logo" className="rounded-full" />
+
+<h2 className="text-xl font-bold text-gray-800">Context Data</h2>
+
+</div>
+
+ 
+
+<nav className="flex-1 space-y-2">
+
+{navigation.map((item) => (
+
+<button
+
+key={item.name}
+
+onClick={() => {
+
+setCurrentPage(item.href);
+
+setIsSidebarOpen(false); // Close sidebar on navigation for mobile
+
+}}
+
+className={`flex items-center w-full px-4 py-2 rounded-lg text-left text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors duration-200
+
+${currentPage === item.href ? 'bg-indigo-100 text-indigo-700 font-semibold' : ''}`}
+
+>
+
+<item.icon className="h-5 w-5 mr-3" />
+
+<span>{item.name}</span>
+
+</button>
+
+))}
+
+</nav>
+
+ 
+
+<div className="p-4 border-t pt-4">
+
+<div className="flex items-center space-x-3">
+
+<div className="w-10 h-10 bg-indigo-200 rounded-full flex items-center justify-center text-indigo-800 font-bold">
+
+MJ
+
+</div>
+
+<div>
+
+<p className="font-semibold text-gray-800">Maria Johnson</p>
+
+<p className="text-sm text-gray-500">Operations Lead</p>
+
+</div>
+
+</div>
+
+<p className="text-xs text-gray-400 mt-2 break-all">User ID: DEMO-USER-12345</p>
+
+</div>
+
+</aside>
+
+ 
+
+{/* Main Content Area */}
+
+<div className="flex-1 flex flex-col min-w-0 lg:ml-64"> {/* Added margin-left for desktop to avoid overlap */}
+
+{/* Top Header */}
+
+<header className="sticky top-0 z-20 bg-white shadow-sm p-4 flex items-center justify-between border-b md:px-8 lg:px-10">
+
+<h1 className="text-2xl font-bold text-gray-800">
+
+{currentPage === 'dashboard' ? 'Operations Dashboard' :
+
+currentPage === 'claims-queue' ? 'Claims Queue' :
+
+currentPage.startsWith('claim-detail') ? 'Claim Details' :
+
+currentPage.charAt(0).toUpperCase() + currentPage.slice(1).replace('-', ' ')}
+
+</h1>
+
+<div className="flex items-center space-x-4">
+
+<button className="flex items-center px-4 py-2 rounded-md bg-white text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm">
+
+<FilterIcon className="h-5 w-5 mr-2" /> Filter
+
+</button>
+
+<button className="flex items-center px-4 py-2 rounded-md bg-white text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm">
+
+<DownloadIcon className="h-5 w-5 mr-2" /> Export
+
+</button>
+
+</div>
+
+</header>
+
+ 
+
+{/* Content */}
+
+<main className="flex-1 overflow-auto p-4 md:p-8 lg:p-10">
+
+{children}
+
+</main>
+
+</div>
+
+</div>
+
+);
+
+};
+
+ 
+
+// Reusable AI Copilot Component (UI only, no API calls)
+
+const AICopilot = ({ title, contextName, chatHistory, isTyping, onSendMessage, quickActions }) => {
+
+const [aiInput, setAiInput] = useState('');
+
+const chatContainerRef = useRef(null);
+
+ 
+
+useEffect(() => {
+
+if (chatContainerRef.current) {
+
+chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+
+}
+
+}, [chatHistory]);
+
+ 
+
+const handleSend = () => {
+
+if (aiInput.trim()) {
+
+// Simulate AI response for frontend demo
+
+const userMessage = { role: "user", parts: [{ text: aiInput }] };
+
+onSendMessage(userMessage); // Pass user message to parent
+
+ 
+
+// Simulate AI typing and response after a short delay
+
+const aiResponse = { role: "model", parts: [{ text: `(Demo AI) I received your query: "${aiInput}". For a full response, a backend connection is required.` }] };
+
+onSendMessage(aiResponse); // Pass AI response to parent
+
+setAiInput('');
+
+}
+
+};
+
+ 
+
+return (
+
+<div className="w-full lg:w-96 bg-white rounded-lg shadow-sm p-6 flex flex-col">
+
+<div className="flex items-center justify-between mb-4 pb-4 border-b">
+
+<h3 className="text-lg font-semibold text-gray-800 flex items-center">
+
+<MessageCircleMoreIcon className="h-6 w-6 mr-2 text-indigo-600" /> {title}
+
+</h3>
+
+{contextName && <span className="text-sm text-gray-500">{contextName}</span>}
+
+</div>
+
+ 
+
+{quickActions && quickActions.length > 0 && (
+
+<div className="mb-4">
+
+<p className="text-sm font-medium text-gray-700 mb-2">Quick Actions</p>
+
+<div className="grid grid-cols-2 gap-2">
+
+{quickActions.map((action, index) => (
+
+<button
+
+key={index}
+
+onClick={() => setAiInput(action.label)} // Pre-fill input with quick action
+
+className="flex items-center justify-center px-3 py-2 text-xs border rounded-md bg-gray-50 hover:bg-gray-100 text-gray-700"
+
+>
+
+{action.icon && React.createElement(action.icon, { className: "h-4 w-4 mr-1" })} {action.label}
+
+</button>
+
+))}
+
+</div>
+
+</div>
+
+)}
+
+ 
+
+<div ref={chatContainerRef} className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+
+{chatHistory.length === 0 ? (
+
+<div className="text-center text-gray-500 text-sm mt-8">
+
+Hello! How can I help you today? (Frontend Demo)
+
+</div>
+
+) : (
+
+chatHistory.map((message, index) => (
+
+<div
+
+key={index}
+
+className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+
+>
+
+<div
+
+className={`max-w-[80%] p-3 rounded-lg shadow-md
+
+${message.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-800'}`}
+
+>
+
+<p className="text-sm">{message.parts[0].text}</p>
+
+<p className="text-xs text-right opacity-75 mt-1">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+
+</div>
+
+</div>
+
+))
+
+)}
+
+{isTyping && (
+
+<div className="flex justify-start">
+
+<div className="max-w-[80%] p-3 rounded-lg bg-gray-100 text-gray-800 animate-pulse">
+
+<p className="text-sm">AI is typing...</p>
+
+</div>
+
+</div>
+
+)}
+
+</div>
+
+ 
+
+<div className="mt-4 border-t pt-4">
+
+<div className="flex items-center space-x-2">
+
+<input
+
+type="text"
+
+className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
+
+placeholder="Ask about this claim..."
+
+value={aiInput}
+
+onChange={(e) => setAiInput(e.target.value)}
+
+onKeyPress={(e) => {
+
+if (e.key === 'Enter') handleSend();
+
+}}
+
+/>
+
+<button
+
+onClick={handleSend}
+
+className="p-3 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+
+>
+
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-send">
+
+<path d="m22 2-7 20-4-9-9-4 20-7Z" />
+
+<path d="M22 2 11 13" />
+
+</svg>
+
+</button>
+
+</div>
+
+</div>
+
+</div>
+
+);
+
+};
+
+ 
+
+ 
+
+// Dashboard Component
+
+const Dashboard = ({ setCurrentPage, setSelectedClaimId }) => {
+
+const [claimsData, setClaimsData] = useState(initialMockClaimsData);
+
+const [dashboardChatHistory, setDashboardChatHistory] = useState([]);
+
+const [isDashboardAiTyping, setIsDashboardAiTyping] = useState(false);
+
+ 
+
+// Simulate AI query for Dashboard
+
+const handleDashboardAiQuery = (message) => {
+
+setDashboardChatHistory(prev => [...prev, message]);
+
+setIsDashboardAiTyping(true);
+
+setTimeout(() => {
+
+const demoResponse = { role: "model", parts: [{ text: `(Demo AI) You asked about dashboard insights. This is a frontend demo, so I cannot provide real-time data analysis. Total claims in demo: ${claimsData.length}.` }] };
+
+setDashboardChatHistory(prev => [...prev, demoResponse]);
+
+setIsDashboardAiTyping(false);
+
+}, 1500); // Simulate network delay
+
+};
+
+ 
+
+// Aggregate data for dashboard metrics using mock data
+
+const totalClaims = claimsData.length;
+
+const totalClaimsThisWeek = claimsData.filter(claim => {
+
+const reportDate = new Date(claim.reportDate);
+
+const oneWeekAgo = new Date();
+
+oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+return reportDate >= oneWeekAgo;
+
+}).length;
+
+const avgHandlingTime = claimsData.length > 0 ? (
+
+claimsData.reduce((sum, claim) => {
+
+if (claim.status === 'Complete') {
+
+return sum + 5; // average 5 days
+
+}
+
+return sum;
+
+}, 0) / (claimsData.filter(c => c.status === 'Complete').length || 1)
+
+).toFixed(1) : 0;
+
+const slaBreaches = claimsData.filter(claim => new Date(claim.slaDue) < new Date() && claim.status !== 'Complete').length;
+
+const processingEfficiency = totalClaims > 0 ? ((claimsData.filter(c => c.documents.some(d => d.processingStatus === 'Processed')).length / totalClaims) * 100).toFixed(1) : 0;
+
+ 
+
+const slaCompliance = {
+
+onTrack: claimsData.filter(c => new Date(c.slaDue) >= new Date() && c.status !== 'Complete').length,
+
+atRisk: claimsData.filter(c => {
+
+const daysUntilDue = (new Date(c.slaDue) - new Date()) / (1000 * 60 * 60 * 24);
+
+return daysUntilDue < 7 && daysUntilDue >= 0 && c.status !== 'Complete';
+
+}).length,
+
+overdue: claimsData.filter(c => new Date(c.slaDue) < new Date() && c.status !== 'Complete').length,
+
+};
+
+ 
+
+const claimsVolumeTrendData = [
+
+{ name: 'Mon', claims: 35 },
+
+{ name: 'Tue', claims: 40 },
+
+{ name: 'Wed', claims: 45 },
+
+{ name: 'Thu', claims: 50 },
+
+{ name: 'Fri', claims: 30 },
+
+{ name: 'Sat', claims: 20 },
+
+{ name: 'Sun', claims: 15 },
+
+];
+
+ 
+
+const claimsByStatusData = [
+
+{ name: 'Complete', value: claimsData.filter(c => c.status === 'Complete').length },
+
+{ name: 'In Progress', value: claimsData.filter(c => c.status === 'In progress').length },
+
+{ name: 'Pending Review', value: claimsData.filter(c => c.status === 'Pending Review' || c.status === 'Ready for Review').length },
+
+{ name: 'Flagged/Other', value: claimsData.filter(c => c.status === 'Flagged' || c.status === 'Missing Docs' || c.status === 'Under Review' || c.status === 'Processing').length },
+
+];
+
+ 
+
+const priorityClaims = claimsData.filter(claim => claim.priority === 'High' || claim.priority === 'Medium').sort((a,b) => new Date(a.slaDue) - new Date(b.slaDue));
+
+ 
+
+const claimsByTypeKPIs = [
+
+{ type: "Water", claims: claimsData.filter(c => c.type === 'Water Damage' || c.type === 'Water').length, avgValue: claimsData.filter(c => c.type === 'Water Damage' || c.type === 'Water').reduce((sum, cl) => sum + Number(cl.estimatedValue || 0), 0) / (claimsData.filter(c => c.type === ' Water Damage' || c.type === 'Water').length || 1) },
+
+{ type: "Fire", claims: claimsData.filter(c => c.type === 'Property Damage (Fire)' || c.type === 'Fire').length, avgValue: claimsData.filter(c => c.type === 'Property Damage (Fire)' || c.type === 'Fire').reduce((sum, cl) => sum + Number(cl.estimatedValue || 0), 0) / (claimsData.filter(c => c.type === 'Property Damage (Fire)' || c.type === 'Fire').length || 1) },
+
+{ type: "Hurricane", claims: claimsData.filter(c => c.type === 'Hurricane').length, avgValue: claimsData.filter(c => c.type === 'Hurricane').reduce((sum, cl) => sum + Number(cl.estimatedValue || 0), 0) / (claimsData.filter(c => c.type === 'Hurricane').length || 1) },
+
+{ type: "Wind", claims: claimsData.filter(c => c.type === 'Wind Damage' || c.type === 'Wind').length, avgValue: claimsData.filter(c => c.type === 'Wind Damage' || c.type === 'Wind').reduce((sum, cl) => sum + Number(cl.estimatedValue || 0), 0) / (claimsData.filter(c => c.type === 'Wind Damage' || c.type === 'Wind').length || 1) },
+
+{ type: "Theft", claims: claimsData.filter(c => c.type === 'Theft').length, avgValue: claimsData.filter(c => c.type === 'Theft').reduce((sum, cl) => sum + Number(cl.estimatedValue || 0), 0) / (claimsData.filter(c => c.type === 'Theft').length || 1) },
+
+{ type: "Other Property", claims: claimsData.filter(c => c.type === 'Other Property' || c.type === 'Home').length, avgValue: claimsData.filter(c => c.type === 'Other Property' || c.type === 'Home').reduce((sum, cl) => sum + Number(cl.estimatedValue || 0), 0) / (claimsData.filter(c => c.type === 'Other Property' || c.type === 'Home').length || 1) },
+
+{ type: "Auto", claims: claimsData.filter(c => c.type === 'Auto').length, avgValue: claimsData.filter(c => c.type === 'Auto').reduce((sum, cl) => sum + Number(cl.estimatedValue || 0), 0) / (claimsData.filter(c => c.type === 'Auto').length || 1) },
+
+{ type: "Commercial", claims: claimsData.filter(c => c.type === 'Commercial').length, avgValue: claimsData.filter(c => c.type === 'Commercial').reduce((sum, cl) => sum + Number(cl.estimatedValue || 0), 0) / (claimsData.filter(c => c.type === 'Commercial').length || 1) },
+
+{ type: "Jewelry", claims: claimsData.filter(c => c.type === 'Jewelry').length, avgValue: claimsData.filter(c => c.type === 'Jewelry').reduce((sum, cl) => sum + Number(cl.estimatedValue || 0), 0) / (claimsData.filter(c => c.type === 'Jewelry').length || 1) },
+
+].filter(kpi => kpi.claims > 0);
+
+ 
+
+const calculateOverallAverage = () => {
+
+const totalClaimValue = claimsByTypeKPIs.reduce((sum, item) => sum + (item.claims * item.avgValue), 0);
+
+const totalClaims = claimsByTypeKPIs.reduce((sum, item) => sum + item.claims, 0);
+
+return totalClaims > 0 ? (totalClaimValue / totalClaims) : 0;
+
+};
+
+const overallAverageClaimValue = calculateOverallAverage();
+
+ 
+
+const dashboardQuickActions = [
+
+{ label: 'Total claims?', icon: ListChecksIcon },
+
+{ label: 'SLA breaches?', icon: AlertCircleIcon },
+
+{ label: 'Avg handling time?', icon: ClockIcon },
+
+{ label: 'Claims by type?', icon: LayersIcon },
+
+];
+
+ 
+
+return (
+
+<div className="flex flex-col lg:flex-row h-full space-y-6 lg:space-y-0 lg:space-x-6 p-4">
+
+<div className="flex-1 space-y-8">
+
+{/* Key Metrics */}
+
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+
+<MetricCard
+
+title="Total Claims This Week"
+
+value={totalClaimsThisWeek}
+
+change="+12% from last week"
+
+icon={<ListChecksIcon className="h-6 w-6 text-indigo-500" />}
+
+/>
+
+<MetricCard
+
+title="Avg Handling Time"
+
+value={`${avgHandlingTime} days`}
+
+change="-2% from last week"
+
+icon={<ClockIcon className="h-6 w-6 text-green-500" />}
+
+/>
+
+<MetricCard
+
+title="SLA Breaches"
+
+value={slaBreaches}
+
+change="-2 from last week"
+
+icon={<AlertCircleIcon className="h-6 w-6 text-red-500" />}
+
+/>
+
+<MetricCard
+
+title="Processing Efficiency"
+
+value={`${processingEfficiency}%`}
+
+change="+4% from last week"
+
+icon={<PercentIcon className="h-6 w-6 text-purple-500" />}
+
+/>
+
+</div>
+
+ 
+
+{/* SLA Compliance Overview */}
+
+<div className="bg-white p-6 rounded-lg shadow-sm">
+
+<h3 className="text-lg font-semibold text-gray-800 mb-4">SLA Compliance Overview</h3>
+
+<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+<ComplianceCard status="On Track" count={slaCompliance.onTrack} total={slaCompliance.onTrack + slaCompliance.atRisk + slaCompliance.overdue} color="bg-green-100 text-green-800" />
+
+<ComplianceCard status="At Risk" count={slaCompliance.atRisk} total={slaCompliance.onTrack + slaCompliance.atRisk + slaCompliance.overdue} color="bg-yellow-100 text-yellow-800" />
+
+<ComplianceCard status="Overdue" count={slaCompliance.overdue} total={slaCompliance.onTrack + slaCompliance.atRisk + slaCompliance.overdue} color="bg-red-100 text-red-800" />
+
+</div>
+
+</div>
+
+ 
+
+{/* Claims Performance by Type */}
+
+<div className="bg-white p-6 rounded-lg shadow-sm">
+
+<div className="flex justify-between items-center mb-4">
+
+<h3 className="text-lg font-semibold text-gray-800">Claims Performance by Type</h3>
+
+<p className="text-sm text-gray-600">Overall Avg Claim Value: <span className="font-bold text-gray-900">${overallAverageClaimValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span></p>
+
+</div>
+
+<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+
+{claimsByTypeKPIs.map((kpi, index) => (
+
+<div key={index} className="border p-4 rounded-lg bg-blue-50">
+
+<p className="font-semibold text-blue-800">{kpi.type}</p>
+
+<p className="text-sm text-gray-700">Claims Processed: <span className="font-medium">{kpi.claims}</span></p>
+
+<p className="text-sm text-gray-700">Avg Claim Value: <span className="font-medium">${kpi.avgValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span></p>
+
+</div>
+
+))}
+
+</div>
+
+</div>
+
+ 
+
+ 
+
+{/* Charts Section */}
+
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+<div className="bg-white p-6 rounded-lg shadow-sm">
+
+<h3 className="text-lg font-semibold text-gray-800 mb-4">Claims Volume Trend</h3>
+
+<ClaimsVolumeTrendChart data={claimsVolumeTrendData} />
+
+</div>
+
+<div className="bg-white p-6 rounded-lg shadow-sm">
+
+<h3 className="text-lg font-semibold text-gray-800 mb-4">Claims by Status</h3>
+
+<ClaimsByStatusChart data={claimsByStatusData} />
+
+<div className="flex justify-center space-x-4 mt-4 text-sm text-gray-600">
+
+{claimsByStatusData.map((d, idx) => (
+
+<div key={idx} className="flex items-center">
+
+<span className={`w-3 h-3 rounded-full mr-2`} style={{ backgroundColor: ['#4CAF50', '#FFC107', '#2196F3', '#FF5722'][idx] }}></span>
+
+{d.name} ({d.value})
+
+</div>
+
+))}
+
+</div>
+
+</div>
+
+</div>
+
+ 
+
+{/* Priority Claims Queue */}
+
+<div className="bg-white p-6 rounded-lg shadow-sm">
+
+<div className="flex justify-between items-center mb-4">
+
+<h3 className="text-lg font-semibold text-gray-800">Priority Claims Queue</h3>
+
+<button
+
+onClick={() => setCurrentPage('claims-queue')}
+
+className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+
+>
+
+View All Claims
+
+</button>
+
+</div>
+
+<ClaimsTable claims={priorityClaims} setCurrentPage={setCurrentPage} setSelectedClaimId={setSelectedClaimId} />
+
+</div>
+
+</div>
+
+<AICopilot
+
+title="Dashboard AI Copilot"
+
+chatHistory={dashboardChatHistory}
+
+isTyping={isDashboardAiTyping}
+
+onSendMessage={handleDashboardAiQuery}
+
+quickActions={dashboardQuickActions}
+
+/>
+
+</div>
+
+);
+
+};
+
+ 
+
+const MetricCard = ({ title, value, change, icon }) => (
+
+<div className="bg-white p-5 rounded-lg shadow-sm flex items-start space-x-4">
+
+<div className="p-3 bg-indigo-50 rounded-full">
+
+{icon}
+
+</div>
+
+<div>
+
+<p className="text-sm font-medium text-gray-500">{title}</p>
+
+<p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
+
+<p className="text-xs text-gray-500 mt-1">{change}</p>
+
+</div>
+
+</div>
+
+);
+
+ 
+
+const ComplianceCard = ({ status, count, total, color }) => (
+
+<div className={`p-4 rounded-lg flex flex-col items-center justify-center ${color}`}>
+
+<p className="text-xl font-bold">{count}</p>
+
+<p className="text-sm">{status}</p>
+
+<p className="text-xs">{((count / total) * 100).toFixed(1)}% of total</p>
+
+</div>
+
+);
+
+ 
+
+const ClaimsTable = ({ claims, setCurrentPage, setSelectedClaimId }) => (
+
+<div className="overflow-x-auto">
+
+<table className="min-w-full divide-y divide-gray-200">
+
+<thead className="bg-gray-50">
+
+<tr>
+
+<th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Claim ID</th>
+
+<th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Claimant</th>
+
+<th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Adjuster</th>
+
+<th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+
+<th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+
+<th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SLA Due</th>
+
+<th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+
+<th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
+
+<th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+
+</tr>
+
+</thead>
+
+<tbody className="bg-white divide-y divide-gray-200">
+
+{claims.length === 0 ? (
+
+<tr>
+
+<td colSpan="9" className="px-6 py-4 text-center text-gray-500">No claims to display.</td>
+
+</tr>
+
+) : (
+
+claims.map((claim) => (
+
+<tr key={claim.id}>
+
+<td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-indigo-600 cursor-pointer hover:underline"
+
+onClick={() => { setSelectedClaimId(claim.id); setCurrentPage('claim-detail'); }}>
+
+{claim.claimId}
+
+</td>
+
+<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{claim.claimant}</td>
+
+<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{claim.assignedAdjuster}</td>
+
+<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{claim.type}</td>
+
+<td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{claim.source || 'N/A'}</td>
+
+<td className="px-6 py-4 whitespace-nowrap text-sm">
+
+<span className={new Date(claim.slaDue) < new Date() ? 'text-red-600 font-medium' : 'text-green-600'}>
+
+{new Date(claim.slaDue).toLocaleDateString()}
+
+</span>
+
+</td>
+
+<td className="px-6 py-4 whitespace-nowrap text-sm">
+
+<span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+
+${claim.status === 'Flagged' ? 'bg-red-100 text-red-800' :
+
+claim.status === 'Ready for Review' ? 'bg-yellow-100 text-yellow-800' :
+
+claim.status === 'Complete' ? 'bg-green-100 text-green-800' :
+
+claim.status === 'Missing Docs' ? 'bg-orange-100 text-orange-800' : 'bg-gray-100 text-gray-800'}`}>
+
+{claim.status}
+
+</span>
+
+</td>
+
+<td className="px-6 py-4 whitespace-nowrap text-sm">
+
+<span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+
+${claim.priority === 'High' ? 'bg-red-100 text-red-800' :
+
+claim.priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
+
+{claim.priority}
+
+</span>
+
+</td>
+
+<td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+
+<button
+
+onClick={() => { setSelectedClaimId(claim.id); setCurrentPage('claim-detail'); }}
+
+className="text-indigo-600 hover:text-indigo-900"
+
+>
+
+View
+
+</button>
+
+</td>
+
+</tr>
+
+))
+
+)}
+
+</tbody>
+
+</table>
+
+</div>
+
+);
+
+ 
+
+ 
+
+// Claims Queue Component
+
+const ClaimsQueue = ({ setCurrentPage, setSelectedClaimId }) => {
+
+const [claims, setClaims] = useState(initialMockClaimsData); // Use mock data
+
+const [searchTerm, setSearchTerm] = useState('');
+
+const [filterSlaUrgency, setFilterSlaUrgency] = useState('');
+
+const [filterAssignedUser, setFilterAssignedUser] = useState('');
+
+const [filterClaimType, setFilterClaimType] = useState('');
+
+const [filterStatus, setFilterStatus] = useState('');
+
+ 
+
+const filteredClaims = claims.filter(claim => {
+
+const matchesSearch = searchTerm === '' ||
+
+claim.claimId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+
+claim.claimant.toLowerCase().includes(searchTerm.toLowerCase()) ||
+
+claim.assignedAdjuster.toLowerCase().includes(searchTerm.toLowerCase());
+
+const matchesSlaUrgency = filterSlaUrgency === '' ||
+
+(filterSlaUrgency === 'overdue' && new Date(claim.slaDue) < new Date()) ||
+
+(filterSlaUrgency === 'due_soon' && new Date(claim.slaDue) >= new Date() && ((new Date(claim.slaDue) - new Date()) / (1000 * 60 * 60 * 24)) <= 7);
+
+const matchesAssignedUser = filterAssignedUser === '' || claim.assignedAdjuster === filterAssignedUser;
+
+const matchesClaimType = filterClaimType === '' || claim.type === filterClaimType;
+
+const matchesStatus = filterStatus === '' || claim.status === filterStatus;
+
+ 
+
+return matchesSearch && matchesSlaUrgency && matchesAssignedUser && matchesClaimType && matchesStatus;
+
+});
+
+ 
+
+// Calculate summary cards - these still depend on the actual fetched claims data
+
+const totalClaims = claims.length;
+
+const readyForReview = claims.filter(c => c.status === 'Ready for Review').length;
+
+const flaggedIssues = claims.filter(c => c.status === 'Flagged').length;
+
+const missingDocs = claims.filter(c => c.status === 'Missing Docs').length;
+
+const completedClaims = claims.filter(c => c.status === 'Complete').length;
+
+ 
+
+// Get unique adjusters and claim types for filters
+
+const uniqueAdjusters = [...new Set(claims.map(c => c.assignedAdjuster))];
+
+const uniqueClaimTypes = [...new Set(claims.map(c => c.type))];
+
+ 
+
+ 
+
+return (
+
+<div className="space-y-6 p-4">
+
+{/* Summary Cards */}
+
+<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+
+<SummaryCard title="Total Claims" count={totalClaims} icon={<ListChecksIcon className="h-6 w-6 text-indigo-500" />} />
+
+<SummaryCard title="Ready for Review" count={readyForReview} icon={<CheckCircleIcon className="h-6 w-6 text-green-500" />} />
+
+<SummaryCard title="Flagged Issues" count={flaggedIssues} icon={<FlagIcon className="h-6 w-6 text-red-500" />} />
+
+<SummaryCard title="Missing Docs" count={missingDocs} icon={<AlertCircleIcon className="h-6 w-6 text-orange-500" />} />
+
+<SummaryCard title="Completed" count={completedClaims} icon={<CheckCircleIcon className="h-6 w-6 text-blue-500" />} />
+
+</div>
+
+ 
+
+{/* Filters Section */}
+
+<div className="bg-white p-6 rounded-lg shadow-sm">
+
+<div className="flex flex-wrap items-center gap-4 mb-4">
+
+<div className="relative flex-grow min-w-[200px]">
+
+<SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+
+<input
+
+type="text"
+
+placeholder="Search claims by ID, claimant, or adjuster..."
+
+value={searchTerm}
+
+onChange={(e) => setSearchTerm(e.target.value)}
+
+className="pl-10 p-2 border border-gray-300 rounded-md w-full focus:ring-indigo-500 focus:border-indigo-500"
+
+/>
+
+</div>
+
+<select
+
+value={filterSlaUrgency}
+
+onChange={(e) => setFilterSlaUrgency(e.target.value)}
+
+className="p-2 border border-gray-300 rounded-md bg-white focus:ring-indigo-500 focus:border-indigo-500"
+
+>
+
+<option value="">SLA Urgency</option>
+
+<option value="overdue">Overdue</option>
+
+<option value="due_soon">Due Soon (7 days)</option>
+
+</select>
+
+<select
+
+value={filterAssignedUser}
+
+onChange={(e) => setFilterAssignedUser(e.target.value)}
+
+className="p-2 border border-gray-300 rounded-md bg-white focus:ring-indigo-500 focus:border-indigo-500"
+
+>
+
+<option value="">Assigned User</option>
+
+{uniqueAdjusters.map(adj => <option key={adj} value={adj}>{adj}</option>)}
+
+</select>
+
+<select
+
+value={filterClaimType}
+
+onChange={(e) => setFilterClaimType(e.target.value)}
+
+className="p-2 border border-gray-300 rounded-md bg-white focus:ring-indigo-500 focus:border-indigo-500"
+
+>
+
+<option value="">Claim Type</option>
+
+{uniqueClaimTypes.map(type => <option key={type} value={type}>{type}</option>)}
+
+</select>
+
+<select
+
+value={filterStatus}
+
+onChange={(e) => setFilterStatus(e.target.value)}
+
+className="p-2 border border-gray-300 rounded-md bg-white focus:ring-indigo-500 focus:border-indigo-500"
+
+>
+
+<option value="">Status</option>
+
+<option value="Flagged">Flagged</option>
+
+<option value="Ready for Review">Ready for Review</option>
+
+<option value="Missing Docs">Missing Docs</option>
+
+<option value="Complete">Complete</option>
+
+<option value="Under Review">Under Review</option>
+
+<option value="Processing">Processing</option>
+
+</select>
+
+<button className="flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-md">
+
+<PlusIcon className="h-5 w-5 mr-2" /> New Claim (Demo)
+
+</button>
+
+</div>
+
+</div>
+
+ 
+
+{/* All Claims Table */}
+
+<div className="bg-white p-6 rounded-lg shadow-sm">
+
+<h3 className="text-lg font-semibold text-gray-800 mb-4">All Claims ({filteredClaims.length} total)</h3>
+
+<ClaimsTable claims={filteredClaims} setCurrentPage={setCurrentPage} setSelectedClaimId={setSelectedClaimId} />
+
+</div>
+
+</div>
+
+);
+
+};
+
+ 
+
+const SummaryCard = ({ title, count, icon }) => (
+
+<div className="bg-white p-4 rounded-lg shadow-sm flex items-center justify-between border">
+
+<div>
+
+<p className="text-xl font-bold text-gray-900">{count}</p>
+
+<p className="text-sm font-medium text-gray-500">{title}</p>
+
+</div>
+
+<div className="p-2 bg-gray-50 rounded-full text-indigo-600">
+
+{icon}
+
+</div>
+
+</div>
+
+);
+
+ 
+
+ 
+
+// Claim Detail Component
+
+const ClaimDetail = ({ selectedClaimId, setCurrentPage }) => {
+
+// Manage claims directly in state for local updates in demo
+
+const [allClaims, setAllClaims] = useState(initialMockClaimsData);
+
+const [claim, setClaim] = useState(null);
+
+const [activeTab, setActiveTab] = useState('overview');
+
+const [claimChatHistory, setClaimChatHistory] = useState([]);
+
+const [isClaimAiTyping, setIsClaimAiTyping] = useState(false);
+
+ 
+
+useEffect(() => {
+
+// Find the selected claim from the local mock data
+
+const foundClaim = allClaims.find(c => c.id === selectedClaimId);
+
+if (foundClaim) {
+
+setClaim(foundClaim);
+
+// Ensure chat history is not undefined before setting
+
+setClaimChatHistory(foundClaim.aiChatHistory ? [...foundClaim.aiChatHistory] : []);
+
+} else {
+
+console.log("No such claim found in mock data!");
+
+setClaim(null);
+
+}
+
+}, [selectedClaimId, allClaims]); // Depend on allClaims to reflect updates
+
+ 
+
+if (!claim) {
+
+return (
+
+<div className="flex items-center justify-center min-h-screen text-gray-600">
+
+Loading claim details or claim not found...
+
+</div>
+
+);
+
+}
+
+ 
+
+// --- AI Copilot Functions for Claim Detail (Simulated) ---
+
+const handleClaimAiQuery = (message) => {
+
+// Update local chat history immediately
+
+const updatedChatHistory = [...claimChatHistory, message];
+
+setClaimChatHistory(updatedChatHistory);
+
+setIsClaimAiTyping(true);
+
+ 
+
+setTimeout(() => {
+
+const demoResponse = { role: "model", parts: [{ text: `(Demo AI) Your query about Claim ${claim.claimId} was: "${message.parts[0].text}". In a live version, I would provide detailed insights here.` }] };
+
+const finalChatHistory = [...updatedChatHistory, demoResponse];
+
+setClaimChatHistory(finalChatHistory);
+
+// Update the local claim data with the new chat history (non-persistent)
+
+setAllClaims(prevClaims => prevClaims.map(c => c.id === claim.id ? { ...c, aiChatHistory: finalChatHistory } : c));
+
+setIsClaimAiTyping(false);
+
+}, 1500); // Simulate network delay
+
+};
+
+ 
+
+const claimQuickActions = [
+
+{ label: 'Summarize claim', icon: FileTextIcon },
+
+{ label: 'List missing docs', icon: ListChecksIcon },
+
+{ label: 'Damage analysis', icon: BarChartIcon },
+
+{ label: 'Policy details?', icon: FileTextIcon },
+
+];
+
+ 
+
+const handleDocumentUpload = () => {
+
+console.log("Simulating document upload...");
+
+const newDocId = `doc-${Date.now()}`;
+
+const simulatedDoc = {
+
+id: newDocId,
+
+name: `New Document ${new Date().toLocaleDateString()}`,
+
+type: 'PDF',
+
+size: `${(Math.random() * 5 + 1).toFixed(1)} MB`,
+
+uploadedDate: new Date().toISOString().split('T')[0],
+
+processingStatus: 'Processing',
+
+confidence: 0,
+
+content: 'Simulated content for new document.',
+
+};
+
+ 
+
+const updatedDocuments = [...claim.documents, simulatedDoc];
+
+setClaim(prevClaim => ({ ...prevClaim, documents: updatedDocuments }));
+
+setAllClaims(prevClaims => prevClaims.map(c => c.id === claim.id ? { ...c, documents: updatedDocuments } : c));
+
+ 
+
+// Simulate processing completion after a delay
+
+setTimeout(() => {
+
+const processedDocIndex = updatedDocuments.findIndex(d => d.id === newDocId);
+
+if (processedDocIndex !== -1) {
+
+const finalDocuments = [...updatedDocuments]; // Create a new array for immutability
+
+finalDocuments[processedDocIndex] = {
+
+...finalDocuments[processedDocIndex],
+
+processingStatus: 'Processed',
+
+confidence: Math.floor(Math.random() * (99 - 70 + 1)) + 70 // 70-99%
+
+};
+
+setClaim(prevClaim => ({ ...prevClaim, documents: finalDocuments }));
+
+setAllClaims(prevClaims => prevClaims.map(c => c.id === claim.id ? { ...c, documents: finalDocuments } : c));
+
+console.log("Simulated document processing complete.");
+
+}
+
+}, 3000); // 3-second delay for simulation
+
+};
+
+ 
+
+const handleUpdateExtractedData = (field, newValue, newConfidence) => {
+
+const updatedExtractedData = claim.extractedData.map(data =>
+
+data.field === field ? { ...data, value: newValue, confidence: newConfidence } : data
+
+);
+
+setClaim(prevClaim => ({ ...prevClaim, extractedData: updatedExtractedData }));
+
+setAllClaims(prevClaims => prevClaims.map(c => c.id === claim.id ? { ...c, extractedData: updatedExtractedData } : c));
+
+console.log(`Updated ${field} to ${newValue} (local demo only)`);
+
+};
+
+ 
+
+ 
+
+return (
+
+<div className="flex flex-col lg:flex-row h-full space-y-6 lg:space-y-0 lg:space-x-6 p-4">
+
+{/* Main Claim Content */}
+
+<div className="flex-1 bg-white rounded-lg shadow-sm p-6 overflow-hidden flex flex-col">
+
+{/* Claim Header */}
+
+<div className="flex flex-wrap items-center justify-between mb-6 pb-4 border-b">
+
+<div className="flex items-center space-x-4 mb-4 lg:mb-0">
+
+<h2 className="text-2xl font-bold text-gray-900">{claim.claimId}</h2>
+
+<span className={`px-3 py-1 rounded-full text-sm font-semibold
+
+${claim.status === 'Under Review' ? 'bg-yellow-100 text-yellow-800' :
+
+claim.status === 'Flagged' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}`}>
+
+{claim.status}
+
+</span>
+
+<span className={`px-3 py-1 rounded-full text-sm font-semibold
+
+${claim.priority === 'High' ? 'bg-red-100 text-red-800' :
+
+claim.priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
+
+{claim.priority} Priority
+
+</span>
+
+</div>
+
+<div className="flex flex-wrap gap-3">
+
+<button className="flex items-center px-4 py-2 rounded-md bg-white text-gray-700 border hover:bg-gray-50 shadow-sm">
+
+<FlagIcon className="h-5 w-5 mr-2" /> Flag Issue (Demo)
+
+</button>
+
+<button className="flex items-center px-4 py-2 rounded-md bg-white text-gray-700 border hover:bg-gray-50 shadow-sm">
+
+<DownloadIcon className="h-5 w-5 mr-2" /> Export (Demo)
+
+</button>
+
+<button className="flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 shadow-md">
+
+<CheckCircleIcon className="h-5 w-5 mr-2" /> Approve Package (Demo)
+
+</button>
+
+</div>
+
+</div>
+
+ 
+
+{/* Top Info Cards */}
+
+<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+
+<InfoCard icon={<UserIcon />} label="Adjuster" value={claim.assignedAdjuster} />
+
+<InfoCard icon={<CalendarIcon />} label="Loss Date" value={claim.lossDate} />
+
+<InfoCard icon={<MapPinIcon />} label="Jurisdiction" value={claim.jurisdiction} />
+
+<InfoCard icon={<DollarSignIcon />} label="Est. Value" value={`$${Number(claim.estimatedValue).toLocaleString()}`} />
+
+</div>
+
+ 
+
+{/* Tabs for Navigation */}
+
+<div className="border-b border-gray-200 mb-6">
+
+<nav className="-mb-px flex space-x-8" aria-label="Tabs">
+
+{['overview', 'documents', 'extracted-data', 'issues'].map((tab) => (
+
+<button
+
+key={tab}
+
+onClick={() => setActiveTab(tab)}
+
+className={`whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors duration-200
+
+${activeTab === tab
+
+? 'border-indigo-500 text-indigo-600'
+
+: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+
+}`}
+
+>
+
+{tab.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+
+</button>
+
+))}
+
+</nav>
+
+</div>
+
+ 
+
+{/* Tab Content */}
+
+<div className="flex-1 overflow-auto pr-2 custom-scrollbar">
+
+{activeTab === 'overview' && (
+
+<div className="space-y-6">
+
+<h3 className="text-lg font-semibold text-gray-800 mb-4">Claim Information</h3>
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+<InfoRow label="Policy Number" value={claim.policyNumber} />
+
+<InfoRow label="Report Date" value={claim.reportDate} />
+
+<InfoRow label="Claimant Name" value={claim.claimant} />
+
+<InfoRow label="Claim Type" value={claim.type} />
+
+<InfoRow label="Source" value={claim.source || 'N/A'} />
+
+<div className="md:col-span-2">
+
+<p className="text-sm font-medium text-gray-500">Overview Text</p>
+
+<p className="text-base text-gray-900 mt-1">{claim.overviewText || 'No detailed overview provided yet.'}</p>
+
+</div>
+
+</div>
+
+</div>
+
+)}
+
+ 
+
+{activeTab === 'documents' && (
+
+<div className="space-y-6">
+
+<div className="flex justify-between items-center mb-4">
+
+<h3 className="text-lg font-semibold text-gray-800">Documents ({claim.documents.length})</h3>
+
+<button
+
+onClick={handleDocumentUpload}
+
+className="flex items-center px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 shadow-md"
+
+>
+
+<ImageUpIcon className="h-5 w-5 mr-2" /> Upload Documents (Demo)
+
+</button>
+
+</div>
+
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+{claim.documents.map((docItem) => (
+
+<DocumentCard key={docItem.id} document={docItem} />
+
+))}
+
+</div>
+
+</div>
+
+)}
+
+ 
+
+{activeTab === 'extracted-data' && (
+
+<div className="space-y-6">
+
+<h3 className="text-lg font-semibold text-gray-800">Extracted Data ({claim.extractedData.length} fields extracted)</h3>
+
+<div className="grid grid-cols-1 gap-4">
+
+{claim.extractedData.map((dataItem, index) => (
+
+<ExtractedDataRow
+
+key={index}
+
+field={dataItem.field}
+
+value={dataItem.value}
+
+source={dataItem.source}
+
+confidence={dataItem.confidence}
+
+onSave={handleUpdateExtractedData} // Pass the save function
+
+/>
+
+))}
+
+</div>
+
+</div>
+
+)}
+
+ 
+
+{activeTab === 'issues' && (
+
+<div className="space-y-4">
+
+<h3 className="text-lg font-semibold text-gray-800">Issues ({claim.issues.length})</h3>
+
+{claim.issues.length === 0 ? (
+
+<p className="text-gray-500">No open issues for this claim.</p>
+
+) : (
+
+claim.issues.map((issue) => (
+
+<div key={issue.id} className="p-4 border rounded-md bg-red-50 border-red-200">
+
+<p className="font-semibold text-red-800">{issue.description}</p>
+
+<p className="text-sm text-red-600">Status: {issue.status} | Priority: {issue.priority}</p>
+
+</div>
+
+))
+
+)}
+
+</div>
+
+)}
+
+</div>
+
+</div>
+
+ 
+
+<AICopilot
+
+title="Claim AI Copilot"
+
+contextName={claim.claimId}
+
+chatHistory={claimChatHistory}
+
+isTyping={isClaimAiTyping}
+
+onSendMessage={handleClaimAiQuery}
+
+quickActions={claimQuickActions}
+
+/>
+
+</div>
+
+);
+
+};
+
+ 
+
+const InfoCard = ({ icon, label, value }) => (
+
+<div className="p-4 bg-gray-50 rounded-lg flex items-center space-x-3">
+
+<div className="p-2 bg-white rounded-full shadow-sm text-indigo-600">
+
+{icon}
+
+</div>
+
+<div>
+
+<p className="text-sm font-medium text-gray-500">{label}</p>
+
+<p className="text-lg font-semibold text-gray-900">{value}</p>
+
+</div>
+
+</div>
+
+);
+
+ 
+
+const InfoRow = ({ label, value }) => (
+
+<div>
+
+<p className="text-sm font-medium text-gray-500">{label}</p>
+
+<p className="text-base text-gray-900 mt-1">{value}</p>
+
+</div>
+
+);
+
+ 
+
+const DocumentCard = ({ document }) => (
+
+<div className="p-4 border rounded-lg shadow-sm bg-white flex flex-col space-y-2">
+
+<div className="flex items-center justify-between">
+
+<div className="flex items-center space-x-2">
+
+{document.type === 'PDF' && <FileTextIcon className="h-6 w-6 text-red-500" />}
+
+{document.type === 'Images' && <ImageUpIcon className="h-6 w-6 text-blue-500" />}
+
+<p className="font-medium text-gray-900">{document.name}</p>
+
+</div>
+
+<span className={`px-2 py-1 text-xs font-semibold rounded-full
+
+${document.processingStatus === 'Processed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+
+{document.processingStatus}
+
+</span>
+
+</div>
+
+<div className="text-sm text-gray-600">
+
+<p>Uploaded: {document.uploadedDate}</p>
+
+{document.processingStatus === 'Processed' && (
+
+<p>Confidence: {document.confidence}%</p>
+
+)}
+
+</div>
+
+<div className="flex space-x-2 mt-2">
+
+<button className="flex-1 flex items-center justify-center text-indigo-600 hover:text-indigo-800 text-sm py-2 rounded-md border border-indigo-200">
+
+<SearchIcon className="h-4 w-4 mr-1" /> View (Demo)
+
+</button>
+
+<button className="flex-1 flex items-center justify-center text-indigo-600 hover:text-indigo-800 text-sm py-2 rounded-md border border-indigo-200">
+
+<FileDownIcon className="h-4 w-4 mr-1" /> Download (Demo)
+
+</button>
+
+</div>
+
+</div>
+
+);
+
+ 
+
+const ExtractedDataRow = ({ field, value, source, confidence, onSave }) => {
+
+const [isEditing, setIsEditing] = useState(false);
+
+const [editedValue, setEditedValue] = useState(value);
+
+const [editedConfidence, setEditedConfidence] = useState(confidence);
+
+ 
+
+const handleSave = () => {
+
+onSave(field, editedValue, editedConfidence);
+
+setIsEditing(false);
+
+};
+
+ 
+
+return (
+
+<div className="p-4 border rounded-lg shadow-sm bg-white flex flex-col sm:flex-row items-start sm:items-center justify-between">
+
+<div className="flex-1 mb-2 sm:mb-0">
+
+<p className="font-medium text-gray-700">{field}</p>
+
+{isEditing ? (
+
+<input
+
+type="text"
+
+value={editedValue}
+
+onChange={(e) => setEditedValue(e.target.value)}
+
+className="mt-1 p-1 border border-gray-300 rounded-md w-full"
+
+/>
+
+) : (
+
+<p className="text-gray-900">{value}</p>
+
+)}
+
+<p className="text-xs text-gray-500 mt-1">Source: {source} <span className="ml-2 font-semibold text-green-700">{confidence}% confidence</span></p>
+
+</div>
+
+<div className="flex items-center space-x-2">
+
+{isEditing ? (
+
+<button onClick={handleSave} className="px-3 py-1 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700">Save</button>
+
+) : (
+
+<button onClick={() => setIsEditing(true)} className="px-3 py-1 rounded-md border border-gray-300 text-gray-700 text-sm hover:bg-gray-100">
+
+<EditIcon className="h-4 w-4" />
+
+</button>
+
+)}
+
+</div>
+
+</div>
+
+);
+
+};
+
+ 
+
+ 
+
+// Analytics Component - NEWLY ADDED
+
+const Analytics = () => {
+
+const [analyticsChatHistory, setAnalyticsChatHistory] = useState([]);
+
+const [isAnalyticsAiTyping, setIsAnalyticsAiTyping] = useState(false);
+
+ 
+
+// Mock data for analytics KPIs
+
+const lossRatioData = [
+
+{ name: 'Jan', value: 0.65 },
+
+{ name: 'Feb', value: 0.62 },
+
+{ name: 'Mar', value: 0.60 },
+
+{ name: 'Apr', value: 0.58 },
+
+{ name: 'May', value: 0.55 },
+
+{ name: 'Jun', value: 0.57 },
+
+];
+
+ 
+
+const avgClaimCycleTimeData = [
+
+{ type: 'Water', days: 7 },
+
+{ type: 'Fire', days: 25 },
+
+{ type: 'Hurricane', days: 30 },
+
+{ type: 'Wind', days: 8 },
+
+{ type: 'Theft', days: 5 },
+
+{ type: 'Other Property', days: 10 },
+
+];
+
+ 
+
+const slaComplianceByAdjuster = [
+
+{ adjuster: 'Sarah Chen', compliance: 98 },
+
+{ adjuster: 'Jimmy Joe', compliance: 92 },
+
+{ adjuster: 'Mike Davis', compliance: 95 },
+
+{ adjuster: 'Alex Lee', compliance: 88 },
+
+];
+
+ 
+
+const fraudDetectionRate = 1.2; // in percent
+
+const litigationRate = 3.5; // in percent
+
+const customerSatisfactionScore = 4.7; // out of 5
+
+const policyRetentionRate = 89; // in percent
+
+const combinedRatio = 92; // in percent
+
+ 
+
+ 
+
+// Handle AI queries for Analytics
+
+const handleAnalyticsAiQuery = (message) => {
+
+setAnalyticsChatHistory(prev => [...prev, message]);
+
+setIsAnalyticsAiTyping(true);
+
+setTimeout(() => {
+
+const demoResponse = { role: "model", parts: [{ text: `(Demo AI) Your query about analytics was: "${message.parts[0].text}". This is a frontend demo, so I cannot provide real-time data analysis or integrate with live AI models.` }] };
+
+setAnalyticsChatHistory(prev => [...prev, demoResponse]);
+
+setIsAnalyticsAiTyping(false);
+
+}, 1500); // Simulate network delay
+
+};
+
+ 
+
+const analyticsQuickActions = [
+
+{ label: 'Current loss ratio?', icon: TrendingDownIcon },
+
+{ label: 'Avg cycle time?', icon: ClockIcon },
+
+{ label: 'Fraud detection rate?', icon: TrendingUpIcon },
+
+{ label: 'CSAT score?', icon: CheckCircleIcon },
+
+];
+
+ 
+
+return (
+
+<div className="flex flex-col lg:flex-row h-full space-y-6 lg:space-y-0 lg:space-x-6 p-4">
+
+<div className="flex-1 space-y-8">
+
+<h2 className="text-2xl font-bold text-gray-800 mb-6">Key Performance Analytics</h2>
+
+ 
+
+{/* Financial Performance Section */}
+
+<div className="bg-white p-6 rounded-lg shadow-sm">
+
+<h3 className="text-lg font-semibold text-gray-800 mb-4">Financial Performance</h3>
+
+<ClaimsVolumeTrendChart data={lossRatioData} /> {/* Re-using ClaimsVolumeTrendChart for demo */}
+
+<p className="text-sm text-gray-500 mt-2">Current Loss Ratio: <span className="font-medium text-red-600">57%</span></p>
+
+</div>
+
+ 
+
+{/* Combined Ratio (Estimate) */}
+
+<div className="bg-white p-6 rounded-lg shadow-sm">
+
+<h3 className="text-lg font-semibold text-gray-800 mb-4">Combined Ratio (Estimate)</h3>
+
+<div className="flex items-center justify-center p-6 bg-gray-50 rounded-lg h-[200px]">
+
+<p className="text-5xl font-bold text-indigo-700">{combinedRatio}%</p>
+
+</div>
+
+<p className="text-sm text-gray-500 mt-2">Target Combined Ratio: <span className="font-medium">95%</span></p>
+
+</div>
+
+ 
+
+{/* Operational Efficiency Section */}
+
+<div className="bg-white p-6 rounded-lg shadow-sm">
+
+<h3 className="text-lg font-semibold text-gray-800 mb-4">Operational Efficiency</h3>
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+
+<div>
+
+<h4 className="text-md font-semibold text-gray-700 mb-2">Average Claim Cycle Time by Type (Days)</h4>
+
+<SimpleBarChart data={avgClaimCycleTimeData} xKey="type" barKey="days" />
+
+<p className="text-sm text-gray-500 mt-2">Overall Average: <span className="font-medium">14.1 days</span></p>
+
+</div>
+
+<div>
+
+<h4 className="text-md font-semibold text-gray-700 mb-2">SLA Compliance Rate by Adjuster (%)</h4>
+
+<SimpleBarChart data={slaComplianceByAdjuster} xKey="adjuster" barKey="compliance" />
+
+<p className="text-sm text-gray-500 mt-2">Overall Compliance: <span className="font-medium">93.25%</span></p>
+
+</div>
+
+</div>
+
+</div>
+
+ 
+
+{/* Claims Performance & Customer Focus Section */}
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+
+<div className="bg-white p-6 rounded-lg shadow-sm">
+
+<h3 className="text-lg font-semibold text-gray-800 mb-4">Claims Performance</h3>
+
+<MetricCard
+
+title="Fraud Detection Rate"
+
+value={`${fraudDetectionRate}%`}
+
+change="Up 0.1% from Q1"
+
+icon={<TrendingUpIcon className="h-6 w-6 text-green-500" />}
+
+/>
+
+<MetricCard
+
+title="Litigation Rate"
+
+value={`${litigationRate}%`}
+
+change="Down 0.5% from last year"
+
+icon={<TrendingDownIcon className="h-6 w-6 text-red-500" />}
+
+/>
+
+</div>
+
+<div className="bg-white p-6 rounded-lg shadow-sm">
+
+<h3 className="text-lg font-semibold text-gray-800 mb-4">Customer & Business Focus</h3>
+
+<MetricCard
+
+title="Customer Satisfaction (CSAT)"
+
+value={`${customerSatisfactionScore}/5`}
+
+change="Steady"
+
+icon={<CheckCircleIcon className="h-6 w-6 text-blue-50" />}
+
+/>
+
+<MetricCard
+
+title="Policy Retention Rate"
+
+value={`${policyRetentionRate}%`}
+
+change="+2% YTD"
+
+icon={<TrendingUpIcon className="h-6 w-6 text-green-500" />}
+
+/>
+
+</div>
+
+</div>
+
+</div>
+
+<AICopilot
+
+title="Analytics AI Copilot"
+
+chatHistory={analyticsChatHistory}
+
+isTyping={isAnalyticsAiTyping}
+
+onSendMessage={handleAnalyticsAiQuery}
+
+quickActions={analyticsQuickActions}
+
+/>
+
+</div>
+
+);
+
+};
+
+ 
+
+ 
+
+// Main App Component
+
+function App() {
+
+const [currentPage, setCurrentPage] = useState('dashboard');
+
+const [selectedClaimId, setSelectedClaimId] = useState(null); // State to store selected claim ID for detail view
+
+ 
+
+let content;
+
+switch (currentPage) {
+
+case 'dashboard':
+
+content = <Dashboard setCurrentPage={setCurrentPage} setSelectedClaimId={setSelectedClaimId} />;
+
+break;
+
+case 'claims-queue':
+
+content = <ClaimsQueue setCurrentPage={setCurrentPage} setSelectedClaimId={setSelectedClaimId} />;
+
+break;
+
+case 'claim-detail':
+
+content = <ClaimDetail selectedClaimId={selectedClaimId} setCurrentPage={setCurrentPage} />;
+
+break;
+
+case 'analytics':
+
+content = <Analytics />; // Render the new Analytics component
+
+break;
+
+case 'team-management':
+
+content = <div className="text-gray-600 text-center py-10">Team Management content coming soon! (Demo)</div>;
+
+break;
+
+case 'admin-console':
+
+content = <div className="text-gray-600 text-center py-10">Admin Console content coming soon! (Demo)</div>;
+
+break;
+
+case 'settings':
+
+content = <div className="text-gray-600 text-center py-10">Settings content coming soon! (Demo)</div>;
+
+break;
+
+default:
+
+content = <Dashboard setCurrentPage={setCurrentPage} setSelectedClaimId={setSelectedClaimId} />;
+
+}
+
+ 
+
+return (
+
+<Layout currentPage={currentPage} setCurrentPage={setCurrentPage}>
+
+{content}
+
+</Layout>
+
+);
+
+}
+
+ 
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+}; // End of window.onload
+
+</script>
+
+</body>
+
+</html>
